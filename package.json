@@ -1,8 +1,8 @@
 {
 	"name": "pandoc-markdown-preview",
 	"displayName": "Pandoc Markdown Preview",
-	"description": "",
-	"version": "0.0.1",
+	"description": "Preview Markdown files with Pandoc syntax",
+	"version": "0.0.2",
 	"repository": "https://github.com/kzvi/vsc-pandoc-markdown-preview",
 	"publisher": "kzvi",
 	"engines": {
