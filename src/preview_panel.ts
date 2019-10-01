@@ -3,13 +3,27 @@ import * as path from 'path';
 import {exec, ChildProcess} from 'child_process';
 
 export default class PreviewPanel /* implements vscode.Disposable */ {
+	// false if the panel has been closed
 	active: boolean;
+	// the text editor this panel previews the contents of
 	editor: vscode.TextEditor;
+	// the panel that the preview is shown in
 	panel: vscode.WebviewPanel;
+	// the vscode-resource:/ uri of katex css and js
 	katexUri: vscode.Uri;
+	// the vscode-resource:/ uri of media/markdown.css
 	cssUri: vscode.Uri;
+	// the vscode-resource:/ uri of the markdown file being edited
 	baseUri: vscode.Uri | undefined;
+	// the pandoc subprocess if it is running, undefined if not running
 	subprocess: ChildProcess | undefined;
+	// the hash of the last rendered markdown document
+	lastRenderedHash: number;
+	// the time that the last invocation of pandoc exited
+	lastRenderedTime: number;
+	// whether there is an active setTimeout() call to render()
+	pending: boolean;
+	// self explanatory
 	disposables: vscode.Disposable[];
 
 	constructor(editor: vscode.TextEditor, extensionContext: vscode.ExtensionContext) {
@@ -36,6 +50,9 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		this.cssUri = this.panel.webview.asWebviewUri(vscode.Uri.file(cssPath));
 		if (this.baseUri)
 			this.baseUri = this.panel.webview.asWebviewUri(this.baseUri);
+		this.lastRenderedHash = 0;
+		this.lastRenderedTime = 0;
+		this.pending = false;
 		this.disposables = [];
 
 		vscode.workspace.onDidChangeTextDocument(ev => {
@@ -57,7 +74,23 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 
 	render() {
 		if (!this.active) { return; }
-		if (this.subprocess) { return; }
+		let minInterval = vscode.workspace.getConfiguration('pandocMarkdownPreview').minimumWaitInterval;
+		if (Date.now() < this.lastRenderedTime + minInterval || this.subprocess) {
+			// can't render now, try later
+			if (!this.pending) {
+				this.pending = true;
+				setTimeout(() => {
+					this.pending = false;
+					this.render();
+				}, 50);
+			}
+			return;
+		}
+		let text = this.editor.document.getText();
+		let textHash = hash(text);
+		if (this.lastRenderedHash === textHash)
+			return;
+		this.lastRenderedHash = textHash;
 		let pandocOptions = [];
 		pandocOptions.push('-s');
 		pandocOptions.push(`--katex=${this.katexUri}/`);
@@ -65,22 +98,21 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		if (this.baseUri)
 			pandocOptions.push('--metadata=header-includes:{{pmp-base-tag}}');
 		this.subprocess = exec(`pandoc ${pandocOptions.join(' ')}`, {timeout: 5000}, (err, stdout, stderr) => {
+			this.subprocess = undefined;
 			if (!this.active) { return; }
+			this.lastRenderedTime = Date.now();
 			if (err) {
 				this.panel.webview.html = `
 					<p>Error executing pandoc:</p>
 					<pre>${escapeHtml(String(err))}</pre>
 				`;
-				return;
+			} else {
+				if (this.baseUri)
+					stdout = stdout.replace('{{pmp-base-tag}}', `<base href="${this.baseUri}">`);
+				this.panel.webview.html = stdout;
 			}
-			if (this.baseUri)
-				stdout = stdout.replace('{{pmp-base-tag}}', `<base href="${this.baseUri}">`);
-			this.panel.webview.html = stdout;
 		});
-		this.subprocess.on('exit', () => {
-			this.subprocess = undefined;
-		});
-		this.subprocess.stdin.write(this.editor.document.getText());
+		this.subprocess.stdin.write(text);
 		this.subprocess.stdin.end();
 	}
 
@@ -102,3 +134,15 @@ function escapeHtml(unsafe: string) {
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&#039;");
 }
+
+// stack overflow
+function hash(s: string) {
+	var hash = 0, i, chr;
+	if (s.length === 0) return hash;
+	for (i = 0; i < s.length; i++) {
+		chr = s.charCodeAt(i);
+		hash = ((hash << 5) - hash) + chr;
+		hash |= 0;
+	}
+	return hash;
+};
