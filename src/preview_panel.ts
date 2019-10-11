@@ -71,8 +71,8 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 
 	render() {
 		if (!this.active) { return; }
-		let minInterval = vscode.workspace.getConfiguration('pandocMarkdownPreview').minimumWaitInterval;
-		if (Date.now() < this.lastRenderedTime + minInterval || this.subprocess) {
+		let config = vscode.workspace.getConfiguration('pandocMarkdownPreview');
+		if (Date.now() < this.lastRenderedTime + config.minimumWaitInterval || this.subprocess) {
 			// can't render now, try later
 			if (!this.pending) {
 				this.pending = true;
@@ -85,6 +85,8 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		}
 		let text = this.editor.document.getText();
 		let pandocOptions = [];
+		if (config.extraPandocArguments.length !== 0)
+			pandocOptions.push(config.extraPandocArguments);
 		pandocOptions.push('-s');
 		pandocOptions.push(`--katex=${this.katexUri}/`);
 		pandocOptions.push(`--css=${this.cssUri}`);
