@@ -17,8 +17,6 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 	baseUri: vscode.Uri | undefined;
 	// the pandoc subprocess if it is running, undefined if not running
 	subprocess: ChildProcess | undefined;
-	// the hash of the last rendered markdown document
-	lastRenderedHash: number;
 	// the time that the last invocation of pandoc exited
 	lastRenderedTime: number;
 	// whether there is an active setTimeout() call to render()
@@ -50,7 +48,6 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		this.cssUri = this.panel.webview.asWebviewUri(vscode.Uri.file(cssPath));
 		if (this.baseUri)
 			this.baseUri = this.panel.webview.asWebviewUri(this.baseUri);
-		this.lastRenderedHash = 0;
 		this.lastRenderedTime = 0;
 		this.pending = false;
 		this.disposables = [];
@@ -87,10 +84,6 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 			return;
 		}
 		let text = this.editor.document.getText();
-		let textHash = hash(text);
-		if (this.lastRenderedHash === textHash)
-			return;
-		this.lastRenderedHash = textHash;
 		let pandocOptions = [];
 		pandocOptions.push('-s');
 		pandocOptions.push(`--katex=${this.katexUri}/`);
@@ -134,15 +127,3 @@ function escapeHtml(unsafe: string) {
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&#039;");
 }
-
-// stack overflow
-function hash(s: string) {
-	var hash = 0, i, chr;
-	if (s.length === 0) return hash;
-	for (i = 0; i < s.length; i++) {
-		chr = s.charCodeAt(i);
-		hash = ((hash << 5) - hash) + chr;
-		hash |= 0;
-	}
-	return hash;
-};
