@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import {exec, ChildProcess} from 'child_process';
+import {exec, ChildProcess, ExecOptions} from 'child_process';
 
 export default class PreviewPanel /* implements vscode.Disposable */ {
 	// false if the panel has been closed
@@ -13,8 +13,6 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 	katexUri: vscode.Uri;
 	// the vscode-resource:/ uri of media/markdown.css
 	cssUri: vscode.Uri;
-	// the vscode-resource:/ uri of the markdown file being edited
-	baseUri: vscode.Uri | undefined;
 	// the pandoc subprocess if it is running, undefined if not running
 	subprocess: ChildProcess | undefined;
 	// the time that the last invocation of pandoc exited
@@ -31,10 +29,9 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		localResourceRoots.push(vscode.Uri.file(extensionContext.extensionPath));
 		if (vscode.workspace.workspaceFolders)
 			vscode.workspace.workspaceFolders.forEach(f => localResourceRoots.push(f.uri));
-		if (editor.document.uri.scheme === 'file' && editor.document.uri.authority === '') {
+		if (editor.document.uri.scheme === 'file') {
 			let baseDir = vscode.Uri.file(path.dirname(editor.document.uri.fsPath));
 			localResourceRoots.push(baseDir);
-			this.baseUri = editor.document.uri;
 		}
 		this.panel = vscode.window.createWebviewPanel(
 			'pandoc-markdown-preview',
@@ -46,8 +43,6 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 		this.katexUri = this.panel.webview.asWebviewUri(vscode.Uri.file(katexPath));
 		let cssPath = extensionContext.asAbsolutePath('media/markdown.css');
 		this.cssUri = this.panel.webview.asWebviewUri(vscode.Uri.file(cssPath));
-		if (this.baseUri)
-			this.baseUri = this.panel.webview.asWebviewUri(this.baseUri);
 		this.lastRenderedTime = 0;
 		this.pending = false;
 		this.disposables = [];
@@ -83,16 +78,22 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 			}
 			return;
 		}
-		let text = this.editor.document.getText();
+		let baseTagUri: vscode.Uri | undefined;
+		if (this.editor.document.uri.scheme === 'file')
+			baseTagUri = this.panel.webview.asWebviewUri(this.editor.document.uri);
+		let execOptions: ExecOptions = {};
+		execOptions.timeout = 5000;
+		if (this.editor.document.uri.scheme === 'file')
+			execOptions.cwd = path.dirname(this.editor.document.uri.fsPath);
 		let pandocOptions = [];
 		if (config.extraPandocArguments.length !== 0)
 			pandocOptions.push(config.extraPandocArguments);
 		pandocOptions.push('-s');
 		pandocOptions.push(`--katex=${this.katexUri}/`);
 		pandocOptions.push(`--css=${this.cssUri}`);
-		if (this.baseUri)
+		if (baseTagUri)
 			pandocOptions.push('--metadata=header-includes:{{pmp-base-tag}}');
-		this.subprocess = exec(`pandoc ${pandocOptions.join(' ')}`, {timeout: 5000}, (err, stdout, stderr) => {
+		this.subprocess = exec(`pandoc ${pandocOptions.join(' ')}`, execOptions, (err, stdout, stderr) => {
 			this.subprocess = undefined;
 			if (!this.active) { return; }
 			this.lastRenderedTime = Date.now();
@@ -102,12 +103,12 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 					<pre>${escapeHtml(String(err))}</pre>
 				`;
 			} else {
-				if (this.baseUri)
-					stdout = stdout.replace('{{pmp-base-tag}}', `<base href="${this.baseUri}">`);
+				if (baseTagUri)
+					stdout = stdout.replace('{{pmp-base-tag}}', `<base href="${baseTagUri}">`);
 				this.panel.webview.html = stdout;
 			}
 		});
-		this.subprocess.stdin.write(text);
+		this.subprocess.stdin.write(this.editor.document.getText());
 		this.subprocess.stdin.end();
 	}
 

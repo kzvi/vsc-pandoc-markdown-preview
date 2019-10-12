@@ -24,6 +24,10 @@ Calling out known issues can help limit users opening duplicate issues against y
 
 ## Release Notes
 
+### 0.3.0
+
+Changed the behavior of the extension to execute pandoc in the directory where a file is saved if the file is saved locally.
+
 ### 0.2.0
 
 Added configuration setting for extra pandoc command-line arguments.
