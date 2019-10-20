@@ -66,16 +66,15 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 
 	render() {
 		if (!this.active) { return; }
+		if (this.pending) { return; }
 		let config = vscode.workspace.getConfiguration('pandocMarkdownPreview');
 		if (Date.now() < this.lastRenderedTime + config.minimumWaitInterval || this.subprocess) {
 			// can't render now, try later
-			if (!this.pending) {
-				this.pending = true;
-				setTimeout(() => {
-					this.pending = false;
-					this.render();
-				}, 50);
-			}
+			this.pending = true;
+			setTimeout(() => {
+				this.pending = false;
+				this.render();
+			}, 50);
 			return;
 		}
 		let baseTagUri: vscode.Uri | undefined;
