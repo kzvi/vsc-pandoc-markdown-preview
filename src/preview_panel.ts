@@ -108,12 +108,22 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 				this.panel.webview.html = stdout;
 			}
 		});
+		// add extra input files
 		for (let inputFile of config.extraPandocInputFiles) {
+			// TODO: handle errors that can occur here
+			let inputFileName: string;
 			if (path.isAbsolute(inputFile)) {
-				this.subprocess.stdin.write(fs.readFileSync(inputFile));
-			} else {
+				inputFileName = inputFile;
+			} else if (this.editor.document.uri.scheme === 'file') {
 				let cwd = path.dirname(this.editor.document.uri.fsPath);
-				this.subprocess.stdin.write(fs.readFileSync(path.join(cwd,inputFile))); 
+				inputFileName = path.join(cwd, inputFile);
+			} else {
+				continue;
+			}
+			try {
+				this.subprocess.stdin.write(fs.readFileSync(inputFileName));
+			} catch {
+				continue;
 			}
 		}
 		this.subprocess.stdin.write(this.editor.document.getText());
