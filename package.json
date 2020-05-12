@@ -39,6 +39,15 @@
 					"default": 750,
 					"description": "The minimum amount of time (in milliseconds) to wait after a pandoc subprocess exits before starting a new one."
 				},
+				"pandocMarkdownPreview.extraPandocInputFiles": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"description": "Path of file to include."
+					},
+					"default": [],
+					"description": "Extra input files to include at the beginning of the buffer passed to pandoc."
+				},
 				"pandocMarkdownPreview.extraPandocArguments": {
 					"type": "string",
 					"default": "",

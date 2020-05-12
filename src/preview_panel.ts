@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import {exec, ChildProcess, ExecOptions} from 'child_process';
 
 export default class PreviewPanel /* implements vscode.Disposable */ {
@@ -108,6 +109,14 @@ export default class PreviewPanel /* implements vscode.Disposable */ {
 				this.panel.webview.html = stdout;
 			}
 		});
+		for (let inputFile of config.extraPandocInputFiles) {
+			if (path.isAbsolute(inputFile)) {
+				this.subprocess.stdin.write(fs.readFileSync(inputFile));
+			} else {
+				let cwd = path.dirname(this.editor.document.uri.fsPath);
+				this.subprocess.stdin.write(fs.readFileSync(path.join(cwd,inputFile))); 
+			}
+		}
 		this.subprocess.stdin.write(this.editor.document.getText());
 		this.subprocess.stdin.end();
 	}
