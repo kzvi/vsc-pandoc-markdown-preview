@@ -46,7 +46,7 @@
 						"description": "Path of file to include."
 					},
 					"default": [],
-					"description": "Extra input files to include at the beginning of the buffer passed to pandoc."
+					"description": "Extra input files to include at the beginning of the buffer passed to pandoc. Files will be read and their contents will be prepended to the pandoc subprocess' standard input."
 				},
 				"pandocMarkdownPreview.extraPandocArguments": {
 					"type": "string",
